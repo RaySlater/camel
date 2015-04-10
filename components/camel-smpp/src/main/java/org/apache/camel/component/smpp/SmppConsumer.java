@@ -46,7 +46,7 @@ public class SmppConsumer extends DefaultConsumer {
     private static final Logger LOG = LoggerFactory.getLogger(SmppConsumer.class);
 
     private SmppConfiguration configuration;
-    private SMPPSession session;
+    private SMPPSession session = null;
     private MessageReceiverListener messageReceiverListener;
     private SessionStateListener internalSessionStateListener;
 
@@ -78,12 +78,21 @@ public class SmppConsumer extends DefaultConsumer {
 
     @Override
     protected void doStart() throws Exception {
-        LOG.debug("Connecting to: " + getEndpoint().getConnectionString() + "...");
 
         super.doStart();
-        session = createSession();
 
-        LOG.info("Connected to: " + getEndpoint().getConnectionString());
+        if (getConfiguration().isStartConsumerIfDown()) {
+            /* Failure to bind to SMSC on creation of route will not cause route
+               to fail. Will enter a reconnection attempt loop. */
+            reconnect(0);
+        }
+        else {
+            LOG.debug("Connecting to: " + getEndpoint().getConnectionString() + "...");
+            // Must be able to bind to SMSC on initialisation or createSession
+            // will throw an exception causing route creation to fail
+            session = createSession();
+            LOG.info("Connected to: " + getEndpoint().getConnectionString());
+        }
     }
 
     private SMPPSession createSession() throws IOException {
@@ -124,29 +133,31 @@ public class SmppConsumer extends DefaultConsumer {
 
     private void closeSession() {
         if (session != null) {
-            session.removeSessionStateListener(this.internalSessionStateListener);
-            // remove this hack after http://code.google.com/p/jsmpp/issues/detail?id=93 is fixed
-            try {
-                Thread.sleep(1000);
-                session.unbindAndClose();
-            } catch (Exception e) {
-                LOG.warn("Could not close session " + session);
-            }
-            session = null;
+                session.removeSessionStateListener(this.internalSessionStateListener);
+                // remove this hack after http://code.google.com/p/jsmpp/issues/detail?id=93 is fixed
+                try {
+                    Thread.sleep(1000);
+                    session.unbindAndClose();
+                } catch (Exception e) {
+                    LOG.warn("Could not close session " + session);
+                }
+                session = null;
         }
     }
 
     private void reconnect(final long initialReconnectDelay) {
-        if (reconnectLock.tryLock()) {
-            try {
-                Runnable r = new Runnable() {
-                    public void run() {
+        Runnable r = new Runnable() {
+            public void run() {
+                if (reconnectLock.tryLock()) {
+                    try {
                         boolean reconnected = false;
-                        
-                        LOG.info("Schedule reconnect after " + initialReconnectDelay + " millis");
-                        try {
-                            Thread.sleep(initialReconnectDelay);
-                        } catch (InterruptedException e) {
+                        if (initialReconnectDelay > 0)
+                        {
+                            LOG.info("Schedule reconnect after " + initialReconnectDelay + " millis");
+                            try {
+                                Thread.sleep(initialReconnectDelay);
+                            } catch (InterruptedException e) {
+                            }
                         }
 
                         int attempt = 0;
@@ -164,22 +175,21 @@ public class SmppConsumer extends DefaultConsumer {
                                 }
                             }
                         }
-                        
+
                         if (reconnected) {
                             LOG.info("Reconnected to " + getEndpoint().getConnectionString());                        
                         }
+                    } catch (Exception e) {
+                        // noop
+                    }  finally {
+                        reconnectLock.unlock();
                     }
-                };
-                
-                Thread t = new Thread(r);
-                t.start(); 
-                t.join();
-            } catch (InterruptedException e) {
-                // noop
-            }  finally {
-                reconnectLock.unlock();
+                }
             }
-        }
+        };
+
+        Thread t = new Thread(r);
+        t.start();
     }
 
     @Override

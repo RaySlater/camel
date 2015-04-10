@@ -193,7 +193,8 @@ public class SmppConfigurationTest {
                 + "httpProxyPort=3128, "
                 + "httpProxyUsername=null, "
                 + "httpProxyPassword=null, "
-                + "splittingPolicy=ALLOW]";
+                + "splittingPolicy=ALLOW, "
+                + "startConsumerIfDown=false]";
 
         assertEquals(expected, configuration.toString());
     }

@@ -109,6 +109,8 @@ public class SmppConfiguration implements Cloneable {
     private SessionStateListener sessionStateListener;
     @UriParam(defaultValue = "ALLOW")
     private SmppSplittingPolicy splittingPolicy = SmppSplittingPolicy.ALLOW;
+    @UriParam(defaultValue = "false")
+    private boolean startConsumerIfDown;
 
     
     /**
@@ -408,6 +410,14 @@ public class SmppConfiguration implements Cloneable {
         this.splittingPolicy = splittingPolicy;
     }
 
+    public boolean isStartConsumerIfDown() {
+        return startConsumerIfDown;
+    }
+
+    public void setStartConsumerIfDown(boolean startConsumerIfDown) {
+        this.startConsumerIfDown = startConsumerIfDown;
+    }
+    
     @Override
     public String toString() {
         return "SmppConfiguration[usingSSL=" + usingSSL 
@@ -443,6 +453,7 @@ public class SmppConfiguration implements Cloneable {
             + ", httpProxyUsername=" + httpProxyUsername
             + ", httpProxyPassword=" + httpProxyPassword
             + ", splittingPolicy=" + splittingPolicy
+            + ", startConsumerIfDown=" + startConsumerIfDown
             + "]";
     }
 }
